@@ -1,2 +1,3 @@
 # ispbackup
-Backuping OLT and SWITCH devices with python
+Desenvolvi este código para fazer backup de OLT Fiberhome e Switch Huawei em massa, consumindo informações do Zabbix via JSON
+
