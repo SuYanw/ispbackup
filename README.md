@@ -1,12 +1,15 @@
 # ispbackup
 Desenvolvi este código para fazer backup de OLT Fiberhome e Switch Huawei em massa, consumindo informações do Zabbix via JSON
 
+Necessário também, acessar o swithc huawei e criar uma conta excluisiva com permissões FTP
+
+
+# Configurando:
 
 Parâmetros necessários para funcionamento.
 
-
-
 Credenciais para backup dos switches
+```
 SW_FTP_ADDRESS  = "1.1.1.1"
 SW_FTP_PASSWORD = "username"
 SW_FTP_USERNAME = "password"
@@ -37,3 +40,4 @@ SHOW_DEBUG      = 0
 Credenciais usuario no switch com permissoes FTP 
 DEFAULT_SW_USR = "username"
 DEFAULT_SW_PWD = "passwd"
+```
