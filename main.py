@@ -343,8 +343,6 @@ if __name__ == "__main__":
     
     x = 0
     while(x <= backup.getmaxhosts(backup.getgroupidbyname("Huawei"))):
-        print("Huawei: {}, ID: {}, description: {}, ip: {}". format( gHosts[x]['name'], x, 
-                           gHosts[x]['description'], gHosts[x]['interfaces'][0]['ip']))
 
         sw = SW(gHosts[x]['interfaces'][0]['ip'], gHosts[x]['name'])
         sw.login()
