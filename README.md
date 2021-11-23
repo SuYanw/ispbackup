@@ -1,7 +1,7 @@
 # ispbackup
 Desenvolvi este código para fazer backup de OLT Fiberhome e Switch Huawei em massa, consumindo informações do Zabbix via JSON
 
-Necessário também, acessar o swithc huawei e criar uma conta excluisiva com permissões FTP
+Necessário também, acessar o swithc huawei e criar uma conta excluisiva com permissões FTP.  criar a pasta tmpfiles.
 
 
 # Configurando:
