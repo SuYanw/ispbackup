@@ -72,11 +72,21 @@ class Backup:
 
         self.getDateFile = datetime.now().strftime("%d%m%Y%H%M%S")
 
+        self.status  = False
+
+
+
         if(SHOW_DEBUG):
             print("(Backup) Feito Login no ZBX (TOKEN: {})". 
                                                 format(self.AUTHTOKEN))
+        
+        self.status = True
 
-    def __del__(self):
+    def disconnect(self):
+
+        if(self.status == 0):
+            return 0
+
 
         Query = requests.post(ZABBIX_API_URL,
                             json={
@@ -92,6 +102,10 @@ class Backup:
                                                 format(self.AUTHTOKEN))
 
     def getgroupidbyname(self, name):
+
+        if(self.status == 0):
+            return 0    
+
         Query = requests.post(ZABBIX_API_URL,
                             json={
                                 "jsonrpc": "2.0",
@@ -109,6 +123,10 @@ class Backup:
         return Query.json()['result'][0]['groupid']
 
     def getmaxhosts(self, groupid):
+
+        if(self.status == 0):
+            return 0
+
         Query = requests.post(ZABBIX_API_URL,
                             json={
                                 "jsonrpc": "2.0",
@@ -132,6 +150,10 @@ class Backup:
 
 
     def gethosts(self, groupid):
+
+        if(self.status == 0):
+            return 0
+
         if(SHOW_DEBUG):
             self.getmaxhosts(groupid)
 
@@ -154,30 +176,85 @@ class Backup:
     def getfiledate():
         getDate = datetime.now().strftime("%b%d%Y") #%d%m%Y%H%M%S
         return getDate
-     
+    
+    def additem(ip, name, type):
+        DbConnect.execute("SELECT * FROM `backups` WHERE nome='{}'". format(name))
+
+        if(DbConnect.fetchone() is None):
+            DbConnect.execute("""INSERT INTO `backups`(
+                                    `nome`,
+                                    `ip`,
+                                    `tipo`
+                                ) VALUES (
+                                    '{}',
+                                    '{}',
+                                    '{}'
+                                )""".format(name, ip, type))
+        else:
+            DbConnect.execute("""UPDATE 
+                                        `backups`
+                                    SET
+                                        ip='{}'
+                                    WHERE
+                                        nome='{}'
+                                        """.format(ip, name))
+
+        connect.commit()
+
+    def getidbyip(ip):
+        DbConnect.execute("SELECT id FROM `backups` WHERE ip='{}'". format(ip))
+        QueryStr = DbConnect.fetchone()
+
+        if(QueryStr is None):
+            return -1
+        else:
+            return int(QueryStr[0])
+            
 
     def upload(devip, ipaddr, user, password, name, filename):
 
         try:
 
-            
+            if (Backup.getidbyip(devip) == -1):
+                Backup.additem(devip, name, 'HUAWEI')
+               
             ___str = "{}-{}-{}.{}". format(name, devip, 
                         Backup.getfiledate(), (filename.split(".")[1]))
+
+            if(SHOW_DEBUG):
+                print(___str)
 
             ftp = ftplib.FTP(ipaddr)
             ftp.login (user, password)
             fin = open ('/root/zbxapi/tmpfiles/' + filename, 'rb')
+            
+            os.rename('/root/zbxapi/tmpfiles/' + filename, 
+                '/root/zbxapi/tmpfiles/' + ___str)
+
+            
             ftp.storbinary (('STOR {}'. format(___str)), fin)
-            file = open('/root/zbxapi/tmpfiles/' + filename,'rb')      
+            #file = open('/root/zbxapi/tmpfiles/' + filename, 'rb')      
             fin.close()                         
             ftp.quit()
-            
-            print("(Backup) Enviando arquivo {} para o FTP!". 
+
+            if(SHOW_DEBUG):
+                print("(Backup) Enviando arquivo {} para o FTP!". 
                                     format(___str))
-            os.remove(filename)
+
+            if(SHOW_DEBUG):
+                print("(Backup-Teste): filename: {}". format(filename))
+
+            DbConnect.execute("INSERT INTO iddata (`iddata`,`nome`, `data`\
+            ,`hora`, `tipo`, `log`) VALUES  ('{}', '{}', CURDATE(),\
+                CURTIME(), 'HUAWEI','[LOG]: Backup Realizado com sucesso!')"
+                .format(Backup.getidbyip(devip), ___str))
+
+            connect.commit()
+            os.remove('/root/zbxapi/tmpfiles/' + ___str)
+
             return 1
-        except Exception as e:
-            print("(Backup)Erro: {}{}". format(filename,e))
+        except AssertionError as e:
+            print("(Backup-Erro)SW:{} = {}{}". format(devip,filename,e))
             return 0
  
 
@@ -185,7 +262,7 @@ class OLT:
     def __init__(self, ipaddr, nomeolt):
         self.oltaddr = ipaddr
         self.filename = nomeolt
-        pass
+
 
     def login(self):
         if(SHOW_DEBUG):
@@ -240,22 +317,35 @@ class OLT:
             print("OLT: Iniciando Backup da OLT")
 
         try:
-            # self.acessa_olt.write((iStr).encode('ascii'))
+
             self.acessa_olt.write("upload ftp config {} {} {} {}-{}.cfg\n". 
                         format(OLT_FTP_ADDRESS, OLT_FTP_USERNAME, 
                                 OLT_FTP_PASSWORD, self.filename, 
                                     Backup.getfiledate()). 
                                         encode('ascii'))
-        except EOFError as e:
+
+            time.sleep(15)
+
+            DbConnect.execute("INSERT INTO iddata (`iddata`,`nome`, `data`, \
+                `hora`, `tipo`, `log`) VALUES  ('{}', '{}-{}.cfg', CURDATE(), \
+                    CURTIME(), 'OLT','[LOG]: Backup Realizado com sucesso!')"
+                    .format(Backup.getidbyip(self.oltaddr), self.filename, 
+                        Backup.getfiledate()))
+
+            connect.commit()
+
+            Backup.additem(self.oltaddr, self.filename, "OLT")
+
+        except Exception as e:
             if(SHOW_DEBUG):
                 print("OLT-{}: Erro fatal: {}". format(self.oltaddr, e))
 
         
 
-
-        print("OLT-{}: Nome do arquivo de backup {}-{}.cfg".
-                    format(self.oltaddr, self.filename,
-                        Backup.getfiledate()))
+        if(SHOW_DEBUG):
+            print("OLT-{}: Nome do arquivo de backup {}-{}.cfg".
+                        format(self.oltaddr, self.filename,
+                            Backup.getfiledate()))
 
     def logout(self):
 
@@ -300,13 +390,21 @@ class SW:
             self.ftp.retrbinary("RETR " + filename , 
                         open("/root/zbxapi/tmpfiles/" + filename, 'wb')
                                 .write)
+                                
+            
+            if(os.path.isfile("/root/zbxapi/tmpfiles/" + filename)):
+                time.sleep(4)
+                if(Backup.upload(self.swaddr, SW_FTP_ADDRESS, SW_FTP_USERNAME, 
+                                    SW_FTP_PASSWORD, self.swname, filename)):
+                    
+                    
+                    print("(SW){}: Feito backup e enviado ao FTP". 
+                            format(self.swaddr))
+            else:
+                print("(SW)ERR- Não foi possivel baixar backup do switch")
 
-            if(Backup.upload(self.swaddr, SW_FTP_ADDRESS, SW_FTP_USERNAME, 
-                                SW_FTP_PASSWORD, self.swname, filename)):
-                print("(SW){}: Feito backup e enviado ao FTP". 
-                                format(self.swaddr))
-        except:
-            print("(SW){}- Erro ao enviar backup!". format(self.swaddr))
+        except AssertionError as Error:
+            print("(SW) {}- Erro ao enviar backup! {}". format(self.swaddr, Error))
             return 0
 
         return 1
